@@ -8,10 +8,14 @@ kaboom({
 // Set the global gravity value for all physics objects.
 setGravity(800);
 
-// Load the apple sprite.
+// --- Load Assets ---
+// We must load all sprites before we can use them in the game.
 loadSprite("apple", "https://kaboomjs.com/sprites/apple.png");
+// This was the missing line! Now the game knows what an "enemy" looks like.
+loadSprite("enemy", "https://kaboomjs.com/sprites/gigagantrum.png");
 
-// Define our main game scene.
+
+// --- Main Game Scene ---
 scene("main", () => {
 
     // --- The Level Design ---
@@ -30,32 +34,62 @@ scene("main", () => {
         tileWidth: 47,
         tileHeight: 47,
         tiles: {
-            " ": () => [], // An empty space does nothing
+            " ": () => [],
             "=": () => [
                 rect(47, 47),
                 color(0, 200, 0),
                 area(),
-                // This makes the platforms solid and unmovable.
                 body({ isStatic: true }),
             ],
         }
     };
 
-    // Add the level to the screen.
     addLevel(levelLayout, levelConf);
 
     // --- The Player Character ---
     const player = add([
         sprite("apple"),
         pos(100, 100),
-        // A scaled-down hitbox prevents getting stuck on walls.
         area({ scale: 0.7 }),
-        // The body() component enables physics (gravity).
         body(),
         "player",
     ]);
 
-    // --- Movement Controls ---
+    // --- The Enemy Character ---
+    // This function DEFINES the patrol component for our enemy
+    function patrol() {
+        return {
+            id: "patrol",
+            require: [ "pos", "area", ],
+            dir: -1,
+            update() {
+                this.move(60 * this.dir, 0);
+            },
+            // This event flips the direction when the enemy collides with something
+            add() {
+                this.onCollide((obj, col) => {
+                    // The isSide() function doesn't exist.
+                    // Instead, we check if the collision is from the left OR the right.
+                    if (col.isLeft() || col.isRight()) {
+                        this.dir = -this.dir;
+                    }
+                });
+            },
+        };
+    }
+
+    // Add an enemy to the scene
+    const enemy = add([
+        sprite("enemy"),
+        pos(600, 200), // Start position for the enemy
+        area(),
+        body(),
+        patrol(), // Use the patrol component we just defined
+        "enemy"
+    ]);
+
+
+    // --- Player Controls & Interactions ---
     onKeyDown("left", () => {
         player.move(-200, 0);
     });
@@ -65,14 +99,40 @@ scene("main", () => {
     });
 
     onKeyPress("space", () => {
-        // isGrounded() is the simplest, most reliable way to check for jumping
-        // when the setup is correct.
         if (player.isGrounded()) {
             player.jump(650);
         }
     });
 
+    player.onCollide("enemy", (enemy, col) => {
+        // If the player lands on top of the enemy
+        if (col.isBottom()) {
+            destroy(enemy);
+            player.jump(300);
+        } else {
+            // If the player hits the enemy from the side
+            destroy(player);
+            go("lose"); // Go to the lose scene
+        }
+    });
 });
 
-// Start the game by going to the "main" scene.
+
+// --- Game Over Scene ---
+scene("lose", () => {
+    add([
+        text("Game Over"),
+        pos(center()),
+        anchor("center"),
+    ]);
+
+    // Go back to the main game after 2 seconds
+    wait(2, () => {
+        go("main");
+    });
+});
+
+// Start the game
 go("main");
+
+
