@@ -9,25 +9,58 @@ kaboom({
 setGravity(800);
 
 // --- Load Assets ---
-// We must load all sprites before we can use them in the game.
 loadSprite("apple", "https://kaboomjs.com/sprites/apple.png");
-// This was the missing line! Now the game knows what an "enemy" looks like.
 loadSprite("enemy", "https://kaboomjs.com/sprites/gigagantrum.png");
+loadSprite("coin", "https://kaboomjs.com/sprites/coin.png");
+loadSprite("door", "https://kaboomjs.com/sprites/door.png");
+
+// --- Define Custom Components ---
+// By defining patrol() here, it's globally available and can be used by any scene.
+function patrol() {
+    return {
+        id: "patrol",
+        require: [ "pos", "area" ],
+        dir: -1,
+        add() {
+            this.onCollide((obj, col) => {
+                if (col.isLeft() || col.isRight()) {
+                    this.dir = -this.dir;
+                }
+            });
+        },
+        update() {
+            this.move(60 * this.dir, 0);
+        },
+    };
+}
 
 
 // --- Main Game Scene ---
-scene("main", () => {
+scene("main", ({ level } = { level: 0 }) => {
 
-    // --- The Level Design ---
-    const levelLayout = [
-        "                    ",
-        "                    ",
-        "    =         =     ",
-        "                    ",
-        "  =       =      =  ",
-        "                    ",
-        "====================",
+    // Array of all level layouts
+    const LEVELS = [
+        [
+            "   $    $    $     ",
+            "                    ",
+            "    =         =   D ",
+            "                    ",
+            "  =    ^  =      =  ",
+            " $           $      ",
+            "====================",
+        ],
+        [
+            " $                  ",
+            " =                  ",
+            "      =      =      ",
+            "                    ",
+            "     ^           ^  ",
+            "      =      =    D ",
+            "====================",
+        ]
     ];
+
+    const currentLevel = level;
 
     // Configure what each symbol in the level layout means.
     const levelConf = {
@@ -40,11 +73,30 @@ scene("main", () => {
                 color(0, 200, 0),
                 area(),
                 body({ isStatic: true }),
+                "platform",
+            ],
+            "$": () => [
+                sprite("coin"),
+                area(),
+                "coin",
+            ],
+            "D": () => [
+                sprite("door"),
+                area(),
+                "door",
+            ],
+            // This now correctly uses the globally-defined patrol() function.
+            "^": () => [
+                sprite("enemy"),
+                area(),
+                body(),
+                patrol(),
+                "enemy",
             ],
         }
     };
 
-    addLevel(levelLayout, levelConf);
+    addLevel(LEVELS[currentLevel], levelConf);
 
     // --- The Player Character ---
     const player = add([
@@ -55,82 +107,43 @@ scene("main", () => {
         "player",
     ]);
 
-    // --- The Enemy Character ---
-    // This function DEFINES the patrol component for our enemy
-    function patrol() {
-        return {
-            id: "patrol",
-            require: [ "pos", "area", ],
-            dir: -1,
-            update() {
-                this.move(60 * this.dir, 0);
-            },
-            // This event flips the direction when the enemy collides with something
-            add() {
-                this.onCollide((obj, col) => {
-                    // The isSide() function doesn't exist.
-                    // Instead, we check if the collision is from the left OR the right.
-                    if (col.isLeft() || col.isRight()) {
-                        this.dir = -this.dir;
-                    }
-                });
-            },
-        };
-    }
-
-    // Add an enemy to the scene
-    const enemy = add([
-        sprite("enemy"),
-        pos(600, 200), // Start position for the enemy
-        area(),
-        body(),
-        patrol(), // Use the patrol component we just defined
-        "enemy"
-    ]);
-
-
     // --- Player Controls & Interactions ---
-    onKeyDown("left", () => {
-        player.move(-200, 0);
-    });
-
-    onKeyDown("right", () => {
-        player.move(200, 0);
-    });
-
-    onKeyPress("space", () => {
-        if (player.isGrounded()) {
-            player.jump(650);
-        }
-    });
+    onKeyDown("left", () => { player.move(-200, 0); });
+    onKeyDown("right", () => { player.move(200, 0); });
+    onKeyPress("space", () => { if (player.isGrounded()) { player.jump(650); } });
 
     player.onCollide("enemy", (enemy, col) => {
-        // If the player lands on top of the enemy
         if (col.isBottom()) {
             destroy(enemy);
             player.jump(300);
         } else {
-            // If the player hits the enemy from the side
             destroy(player);
-            go("lose"); // Go to the lose scene
+            go("lose");
+        }
+    });
+
+    player.onCollide("door", () => {
+        if (currentLevel + 1 < LEVELS.length) {
+            go("main", { level: currentLevel + 1 });
+        } else {
+            go("win");
         }
     });
 });
 
 
-// --- Game Over Scene ---
+// --- Lose Scene ---
 scene("lose", () => {
-    add([
-        text("Game Over"),
-        pos(center()),
-        anchor("center"),
-    ]);
-
-    // Go back to the main game after 2 seconds
-    wait(2, () => {
-        go("main");
-    });
+    add([ text("Game Over"), pos(center()), anchor("center") ]);
+    wait(2, () => { go("main", { level: 0 }); });
 });
+
+// --- Win Scene ---
+scene("win", () => {
+    add([ text("You Win!"), pos(center()), anchor("center") ]);
+    wait(2, () => { go("main", { level: 0 }); });
+});
+
 
 // Start the game
 go("main");
