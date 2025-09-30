@@ -98,6 +98,14 @@ scene("main", ({ level } = { level: 0 }) => {
 
     addLevel(LEVELS[currentLevel], levelConf);
 
+    // --- Score & UI ---
+    let score = 0;
+    const scoreLabel =add([
+        text("Score:" + score),
+        pos(24,24),
+        fixed(),
+    ]);
+
     // --- The Player Character ---
     const player = add([
         sprite("apple"),
@@ -111,6 +119,14 @@ scene("main", ({ level } = { level: 0 }) => {
     onKeyDown("left", () => { player.move(-200, 0); });
     onKeyDown("right", () => { player.move(200, 0); });
     onKeyPress("space", () => { if (player.isGrounded()) { player.jump(650); } });
+
+    //--Coin Collecting Logic--
+    player.onCollide("coin", (coin) =>{
+        destroy(coin);
+        score+= 10;
+        scoreLabel.text ="Score: " + score;
+
+    });
 
     player.onCollide("enemy", (enemy, col) => {
         if (col.isBottom()) {
